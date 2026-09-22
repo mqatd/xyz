@@ -289,11 +289,12 @@
       <thead>
         <tr>
           <th style="width:6%">#</th>
-          <th style="width:15%">CODE</th>
-          <th style="width:43%">ITEM DESCRIPTION</th>
+          <th style="width:14%">CODE</th>
+          <th style="width:36%">ITEM DESCRIPTION</th>
           <th class="text-right" style="width:12%">RATE</th>
           <th class="text-right" style="width:8%">QTY</th>
-          <th class="text-right" style="width:16%">AMOUNT</th>
+          <th class="text-right" style="width:10%">TAX (₹)</th>
+          <th class="text-right" style="width:14%">AMOUNT</th>
         </tr>
       </thead>
       <tbody id="printTableBody"></tbody>
@@ -746,7 +747,6 @@
         activeRows = posInvoiceItems.filter(i=>(i.name&&i.name.trim()!=="")||i.price>0);
         if (activeRows.length===0) { alert("Invoice is empty. Please add items before printing."); return; }
 
-        // Stock availability verification before issuing sale
         for (const row of activeRows) {
           if (!row.code) continue;
           const product = inventory.find(i => i.code.toLowerCase() === row.code.toLowerCase());
@@ -770,7 +770,7 @@
         timestamp=now.toLocaleDateString()+' '+now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
       }
 
-      // Populate receipt DOM
+      // Populate receipt DOM: RATE -> QTY -> TAX (₹) -> AMOUNT
       const printTbody=document.getElementById("printTableBody");
       printTbody.innerHTML="";
       let subtotal=0, totalTax=0, grandTotal=0;
@@ -779,7 +779,7 @@
         const base=qty*price, tax=(base*taxRate)/100, rowTotal=base+tax;
         subtotal+=base; totalTax+=tax; grandTotal+=rowTotal;
         const tr=document.createElement("tr");
-        tr.innerHTML=`<td>${i+1}</td><td>${row.code||'-'}</td><td>${row.name}</td><td class="text-right">${price.toFixed(2)}</td><td class="text-right">${qty}</td><td class="text-right">${rowTotal.toFixed(2)}</td>`;
+        tr.innerHTML=`<td>${i+1}</td><td>${row.code||'-'}</td><td>${row.name}</td><td class="text-right">${price.toFixed(2)}</td><td class="text-right">${qty}</td><td class="text-right">${tax.toFixed(2)}</td><td class="text-right">${rowTotal.toFixed(2)}</td>`;
         printTbody.appendChild(tr);
       });
       document.getElementById("printInvNo").innerText      = invoiceNo;
@@ -788,7 +788,6 @@
       document.getElementById("printTax").innerText        = totalTax.toFixed(2);
       document.getElementById("printGrandTotal").innerText = grandTotal.toFixed(2);
 
-      // Deduct inventory and log sale if this is a new checkout
       if (!existingInvoice) {
         activeRows.forEach(row => {
           if (!row.code) return;
@@ -803,7 +802,6 @@
         salesHistory.unshift({ id:timestampFormatted, invoiceNo, timestamp, itemsCount:activeRows.length, subtotal, tax:totalTax, grandTotal, items:JSON.parse(JSON.stringify(activeRows)) });
         persistSalesHistory();
 
-        // Clear completed invoice lines
         posInvoiceItems = [];
         addBlankInvoiceRow();
       }
