@@ -86,7 +86,7 @@
     .modal-body { padding: 1.25rem; overflow-y: auto; flex: 1; }
     .modal-footer { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem; }
 
-    /* Receipt section: always off-screen, never display:none */
+    /* Receipt section: kept off-screen, never display:none */
     #print-section {
       position: absolute;
       left: -9999px;
@@ -102,7 +102,6 @@
       border: 2px solid #000;
     }
 
-    /* Receipt inner styles */
     .receipt-header { text-align: center; margin-bottom: 10px; }
     .receipt-header h2 { font-size: 20px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #000; }
     .receipt-header p { margin: 2px 0; font-size: 13px; }
@@ -389,7 +388,10 @@
       filtered.forEach((item) => {
         const actualIndex = inventory.findIndex(i => i.code === item.code);
         const row = document.createElement("tr");
-        row.innerHTML = `<td><strong>${item.code}</strong></td><td>${item.name}</td><td>${item.qty}</td><td>&#8377;${Number(item.mrp).toFixed(2)}</td><td>${item.tax}%</td><td><button class="btn btn-outline" style="padding:2px 6px;font-size:0.75rem;" onclick="editInventoryItem(${actualIndex})">Edit</button> <button class="btn btn-danger" style="padding:2px 6px;font-size:0.75rem;" onclick="deleteInventoryItem(${actualIndex})">Delete</button></td>`;
+        const qtyDisplay = Number(item.qty) <= 0 
+          ? `<span style="color:var(--danger);font-weight:700;">0 (No Stock)</span>` 
+          : item.qty;
+        row.innerHTML = `<td><strong>${item.code}</strong></td><td>${item.name}</td><td>${qtyDisplay}</td><td>&#8377;${Number(item.mrp).toFixed(2)}</td><td>${item.tax}%</td><td><button class="btn btn-outline" style="padding:2px 6px;font-size:0.75rem;" onclick="editInventoryItem(${actualIndex})">Edit</button> <button class="btn btn-danger" style="padding:2px 6px;font-size:0.75rem;" onclick="deleteInventoryItem(${actualIndex})">Delete</button></td>`;
         tbody.appendChild(row);
       });
     }
@@ -529,7 +531,6 @@
       let token = "";
       let inQuotes = false;
 
-      // Autodetect delimiter from first line (comma, semicolon, or tab)
       const firstLineEnd = text.search(/[\r\n]/);
       const headerSample = firstLineEnd !== -1 ? text.substring(0, firstLineEnd) : text;
       const delimiterCounts = {
@@ -579,13 +580,24 @@
     function addBlankInvoiceRow() { posInvoiceItems.push({ code:"", name:"", qty:1, price:0, tax:0 }); renderPosTable(); }
 
     function addProductToInvoice(product) {
-      const existing = posInvoiceItems.find(i => i.code && i.code.toLowerCase()===product.code.toLowerCase());
-      if (existing) { existing.qty += 1; }
-      else {
-        const last = posInvoiceItems[posInvoiceItems.length-1];
-        const isBlank = last && !last.code && !last.name && last.price===0;
-        const ni = { code:product.code, name:product.name, qty:1, price:product.mrp, tax:product.tax };
-        if (isBlank) posInvoiceItems[posInvoiceItems.length-1]=ni; else posInvoiceItems.push(ni);
+      const currentStock = Number(product.qty) || 0;
+      if (currentStock <= 0) {
+        alert(`⚠️ No stock available for "${product.name}" (${product.code}). Stock is 0.`);
+        return;
+      }
+
+      const existing = posInvoiceItems.find(i => i.code && i.code.toLowerCase() === product.code.toLowerCase());
+      if (existing) {
+        if (existing.qty + 1 > currentStock) {
+          alert(`⚠️ Cannot add more. Only ${currentStock} item(s) in stock for "${product.name}".`);
+          return;
+        }
+        existing.qty += 1;
+      } else {
+        const last = posInvoiceItems[posInvoiceItems.length - 1];
+        const isBlank = last && !last.code && !last.name && last.price === 0;
+        const ni = { code: product.code, name: product.name, qty: 1, price: product.mrp, tax: product.tax };
+        if (isBlank) posInvoiceItems[posInvoiceItems.length - 1] = ni; else posInvoiceItems.push(ni);
       }
       renderPosTable();
     }
@@ -616,8 +628,50 @@
     }
 
     function updatePosField(index, field, value) {
-      if (['qty','price','tax'].includes(field)) posInvoiceItems[index][field]=parseFloat(value)||0;
-      else posInvoiceItems[index][field]=value;
+      if (field === 'qty') {
+        const newQty = parseFloat(value) || 0;
+        const currentCode = posInvoiceItems[index].code;
+        if (currentCode) {
+          const matched = inventory.find(i => i.code.toLowerCase() === currentCode.toLowerCase());
+          if (matched) {
+            const stock = Number(matched.qty) || 0;
+            if (stock <= 0) {
+              alert(`⚠️ No stock available for "${matched.name}".`);
+              posInvoiceItems[index].qty = 0;
+              renderPosTable();
+              return;
+            }
+            if (newQty > stock) {
+              alert(`⚠️ Quantity exceeds available stock (${stock}) for "${matched.name}". Setting to maximum available.`);
+              posInvoiceItems[index].qty = stock;
+              renderPosTable();
+              return;
+            }
+          }
+        }
+        posInvoiceItems[index].qty = newQty;
+      } else if (['price','tax'].includes(field)) {
+        posInvoiceItems[index][field] = parseFloat(value) || 0;
+      } else if (field === 'code') {
+        posInvoiceItems[index].code = value;
+        const matched = inventory.find(i => i.code.toLowerCase() === value.trim().toLowerCase());
+        if (matched) {
+          if (Number(matched.qty) <= 0) {
+            alert(`⚠️ No stock available for "${matched.name}".`);
+            posInvoiceItems[index].code = "";
+            renderPosTable();
+            return;
+          }
+          posInvoiceItems[index].name = matched.name;
+          posInvoiceItems[index].price = matched.mrp;
+          posInvoiceItems[index].tax = matched.tax;
+          if (posInvoiceItems[index].qty > matched.qty) {
+            posInvoiceItems[index].qty = matched.qty;
+          }
+        }
+      } else {
+        posInvoiceItems[index][field] = value;
+      }
       renderPosTable();
     }
 
@@ -633,14 +687,24 @@
       if(!q){ list.style.display="none"; list.innerHTML=""; return; }
       const matches=inventory.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
       if(matches.length===0){ list.style.display="none"; return; }
-      list.innerHTML=matches.slice(0,8).map(m=>`<div class="autocomplete-item" onclick="selectFromPosSearch('${m.code}')"><span><strong>${m.code}</strong> - ${m.name}</span><span style="color:var(--primary);font-weight:600;">&#8377;${m.mrp}</span></div>`).join('');
+      list.innerHTML=matches.slice(0,8).map(m=>{
+        const isOutOfStock = Number(m.qty) <= 0;
+        const stockTag = isOutOfStock 
+          ? `<span style="color:var(--danger);font-size:0.75rem;margin-left:6px;">[Out of Stock]</span>` 
+          : `<span style="color:var(--muted);font-size:0.75rem;margin-left:6px;">(${m.qty} left)</span>`;
+        return `<div class="autocomplete-item" onclick="selectFromPosSearch('${m.code}')">
+          <span><strong>${m.code}</strong> - ${m.name} ${stockTag}</span>
+          <span style="color:var(--primary);font-weight:600;">&#8377;${m.mrp}</span>
+        </div>`;
+      }).join('');
       list.style.display="block";
     }
 
     function selectFromPosSearch(code) {
-      const p=inventory.find(i=>i.code===code); if(p) addProductToInvoice(p);
-      document.getElementById("posSearchInput").value="";
-      document.getElementById("autocompleteList").style.display="none";
+      const p = inventory.find(i => i.code === code);
+      if (p) addProductToInvoice(p);
+      document.getElementById("posSearchInput").value = "";
+      document.getElementById("autocompleteList").style.display = "none";
     }
 
     function openAllItemsModal() { document.getElementById("allItemsModal").classList.add("active"); renderModalItemList(""); }
@@ -650,13 +714,23 @@
       const body=document.getElementById("modalItemsBody"), q=filter.trim().toLowerCase();
       body.innerHTML="";
       inventory.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q)).forEach(item=>{
+        const isOutOfStock = Number(item.qty) <= 0;
+        const stockCol = isOutOfStock 
+          ? `<span style="color:var(--danger);font-weight:bold;">0</span>` 
+          : item.qty;
+        const btnAction = isOutOfStock 
+          ? `<button class="btn btn-outline" style="padding:2px 8px;font-size:0.75rem;color:var(--danger);cursor:not-allowed;" onclick="alert('⚠️ Item is out of stock!')">No Stock</button>` 
+          : `<button class="btn btn-primary" style="padding:2px 8px;font-size:0.75rem;" onclick="addFromModal('${item.code}')">+ Add</button>`;
         const tr=document.createElement("tr");
-        tr.innerHTML=`<td><strong>${item.code}</strong></td><td>${item.name}</td><td>${item.qty}</td><td>&#8377;${Number(item.mrp).toFixed(2)}</td><td>${item.tax}%</td><td><button class="btn btn-primary" style="padding:2px 8px;font-size:0.75rem;" onclick="addFromModal('${item.code}')">+ Add</button></td>`;
+        tr.innerHTML=`<td><strong>${item.code}</strong></td><td>${item.name}</td><td>${stockCol}</td><td>&#8377;${Number(item.mrp).toFixed(2)}</td><td>${item.tax}%</td><td>${btnAction}</td>`;
         body.appendChild(tr);
       });
     }
 
-    function addFromModal(code) { const p=inventory.find(i=>i.code===code); if(p) addProductToInvoice(p); }
+    function addFromModal(code) {
+      const p = inventory.find(i => i.code === code);
+      if (p) addProductToInvoice(p);
+    }
 
     function triggerPrintPdf(existingInvoice = null) {
       let activeRows=[], invoiceNo="", timestamp="", timestampFormatted="";
@@ -671,6 +745,24 @@
       } else {
         activeRows = posInvoiceItems.filter(i=>(i.name&&i.name.trim()!=="")||i.price>0);
         if (activeRows.length===0) { alert("Invoice is empty. Please add items before printing."); return; }
+
+        // Stock availability verification before issuing sale
+        for (const row of activeRows) {
+          if (!row.code) continue;
+          const product = inventory.find(i => i.code.toLowerCase() === row.code.toLowerCase());
+          if (product) {
+            const avail = Number(product.qty) || 0;
+            if (avail <= 0) {
+              alert(`Cannot complete sale: "${product.name}" is completely out of stock.`);
+              return;
+            }
+            if (row.qty > avail) {
+              alert(`Cannot complete sale: Billed quantity (${row.qty}) for "${product.name}" exceeds available stock (${avail}).`);
+              return;
+            }
+          }
+        }
+
         const dateStr=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
         const timeStr=`${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
         timestampFormatted=`${dateStr}_${timeStr}`;
@@ -678,6 +770,7 @@
         timestamp=now.toLocaleDateString()+' '+now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
       }
 
+      // Populate receipt DOM
       const printTbody=document.getElementById("printTableBody");
       printTbody.innerHTML="";
       let subtotal=0, totalTax=0, grandTotal=0;
@@ -695,9 +788,24 @@
       document.getElementById("printTax").innerText        = totalTax.toFixed(2);
       document.getElementById("printGrandTotal").innerText = grandTotal.toFixed(2);
 
+      // Deduct inventory and log sale if this is a new checkout
       if (!existingInvoice) {
+        activeRows.forEach(row => {
+          if (!row.code) return;
+          const idx = inventory.findIndex(i => i.code.toLowerCase() === row.code.toLowerCase());
+          if (idx !== -1) {
+            inventory[idx].qty = Math.max(0, (parseFloat(inventory[idx].qty) || 0) - (parseFloat(row.qty) || 0));
+          }
+        });
+        persistInventory();
+        renderInventoryTable();
+
         salesHistory.unshift({ id:timestampFormatted, invoiceNo, timestamp, itemsCount:activeRows.length, subtotal, tax:totalTax, grandTotal, items:JSON.parse(JSON.stringify(activeRows)) });
         persistSalesHistory();
+
+        // Clear completed invoice lines
+        posInvoiceItems = [];
+        addBlankInvoiceRow();
       }
 
       const ps=document.getElementById('print-section');
