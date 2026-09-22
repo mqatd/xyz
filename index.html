@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SK Stores, Kochi - POS & Inventory System</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --primary-hover: #172554;
+      --accent: #0284c7;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #cbd5e1;
+      --danger: #dc2626;
+      --success: #16a34a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); line-height: 1.5; }
+
+    header { background-color: var(--primary); color: white; padding: 0.85rem 1.5rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .shop-title h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.5px; }
+    .shop-title p { font-size: 0.8rem; color: #93c5fd; }
+    .nav-tabs { display: flex; gap: 0.4rem; }
+    .nav-tab-btn { background: transparent; border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.45rem 1rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.2s ease; }
+    .nav-tab-btn:hover { background: rgba(255,255,255,0.15); }
+    .nav-tab-btn.active { background: white; color: var(--primary); border-color: white; }
+
+    main { padding: 1.25rem; max-width: 1400px; margin: 0 auto; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .card { background: var(--card-bg); border-radius: 6px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 1.25rem; margin-bottom: 1.25rem; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; }
+    .card-header h2 { font-size: 1.15rem; color: var(--primary); }
+
+    .btn { padding: 0.45rem 0.9rem; border-radius: 4px; border: none; font-weight: 600; font-size: 0.85rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; transition: background 0.15s; }
+    .btn-primary { background: var(--primary); color: white; } .btn-primary:hover { background: var(--primary-hover); }
+    .btn-accent { background: var(--accent); color: white; } .btn-accent:hover { background: #0369a1; }
+    .btn-danger { background: var(--danger); color: white; } .btn-danger:hover { background: #b91c1c; }
+    .btn-success { background: var(--success); color: white; } .btn-success:hover { background: #15803d; }
+    .btn-outline { background: white; border: 1px solid var(--border); color: var(--text); } .btn-outline:hover { background: #f1f5f9; }
+
+    input, select { padding: 0.45rem 0.65rem; border: 1px solid var(--border); border-radius: 4px; font-size: 0.85rem; outline: none; }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(2,132,199,0.2); }
+
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+    .form-group label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; }
+
+    .table-container { overflow-x: auto; border: 1px solid var(--border); border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
+    th { background-color: #f1f5f9; padding: 0.65rem 0.75rem; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+    td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:hover { background-color: #f8fafc; }
+
+    .pos-search-bar { position: relative; flex: 1; max-width: 450px; }
+    .pos-search-bar input { width: 100%; padding: 0.55rem 0.8rem; }
+    .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border); border-top: none; z-index: 10; max-height: 220px; overflow-y: auto; border-radius: 0 0 4px 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .autocomplete-item { padding: 0.5rem 0.75rem; cursor: pointer; display: flex; justify-content: space-between; font-size: 0.85rem; }
+    .autocomplete-item:hover { background: #e0f2fe; }
+
+    .pos-layout { display: grid; grid-template-columns: 1fr 320px; gap: 1.25rem; }
+    @media (max-width: 992px) { .pos-layout { grid-template-columns: 1fr; } }
+
+    .summary-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 1.25rem; }
+    .summary-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .summary-row.total { font-size: 1.2rem; font-weight: 700; border-top: 2px dashed var(--border); padding-top: 0.75rem; margin-top: 0.75rem; color: var(--primary); }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .metric-card { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1.25rem; border-left: 4px solid var(--primary); }
+    .metric-card.accent { border-left-color: var(--accent); }
+    .metric-card.success { border-left-color: var(--success); }
+    .metric-label { font-size: 0.75rem; text-transform: uppercase; font-weight: 600; color: var(--muted); margin-bottom: 0.25rem; }
+    .metric-value { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal.active { display: flex; }
+    .modal-content { background: white; border-radius: 6px; width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-body { padding: 1.25rem; overflow-y: auto; flex: 1; }
+    .modal-footer { padding: 0.75rem 1.25rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem; }
+
+    /* Receipt section: always off-screen, never display:none */
+    #print-section {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      width: 794px;
+      background: #fff;
+      padding: 20px 24px;
+      box-sizing: border-box;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #000;
+      border: 2px solid #000;
+    }
+
+    /* Receipt inner styles */
+    .receipt-header { text-align: center; margin-bottom: 10px; }
+    .receipt-header h2 { font-size: 20px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: #000; }
+    .receipt-header p { margin: 2px 0; font-size: 13px; }
+    .receipt-divider { border-top: 1.5px dashed #000; margin: 10px 0; }
+    .receipt-meta { font-size: 13px; margin-bottom: 8px; }
+    .receipt-meta-row { display: flex; justify-content: space-between; margin: 2px 0; }
+
+    table.receipt-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+    table.receipt-table th { border-top: 1.5px dashed #000; border-bottom: 1.5px dashed #000; padding: 6px 4px; font-weight: bold; text-align: left; background: transparent; color: #000; text-transform: uppercase; }
+    table.receipt-table td { padding: 5px 4px; border: none; vertical-align: top; }
+    .text-right { text-align: right !important; }
+
+    .receipt-totals-container { display: flex; justify-content: flex-end; margin-top: 6px; }
+    .receipt-totals { width: 320px; font-size: 13px; }
+    .receipt-totals .line { display: flex; justify-content: space-between; margin: 3px 0; }
+    .receipt-totals .grand-total { font-weight: bold; font-size: 16px; border-top: 1.5px dashed #000; border-bottom: 1.5px dashed #000; padding: 6px 0; margin-top: 6px; }
+    .receipt-footer { text-align: center; font-size: 12px; margin-top: 14px; padding-top: 8px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="shop-title">
+      <h1>SK Stores</h1>
+      <p>Market Road, Kochi, Kerala</p>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab-btn active" onclick="switchTab('pos')">POS Terminal</button>
+      <button class="nav-tab-btn" onclick="switchTab('inventory')">Inventory</button>
+      <button class="nav-tab-btn" onclick="switchTab('sales')">Sales & History</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. POS TERMINAL PANEL -->
+    <section id="panel-pos" class="panel active">
+      <div class="card">
+        <div class="card-header">
+          <div style="display:flex; gap:0.5rem; flex:1; align-items:center; flex-wrap:wrap;">
+            <div class="pos-search-bar">
+              <input type="text" id="posSearchInput" placeholder="Scan Barcode or Search Item Name / Code..." oninput="handlePosSearch(this.value)">
+              <div id="autocompleteList" class="autocomplete-list" style="display: none;"></div>
+            </div>
+            <button class="btn btn-outline" onclick="openAllItemsModal()">Browse Inventory</button>
+            <button class="btn btn-outline" onclick="addBlankInvoiceRow()">+ Add Blank Row</button>
+          </div>
+          <div>
+            <button class="btn btn-danger" onclick="clearInvoice()">Reset Bill</button>
+          </div>
+        </div>
+
+        <div class="pos-layout">
+          <div class="table-container">
+            <table id="posTable">
+              <thead>
+                <tr>
+                  <th style="width: 110px;">Code</th>
+                  <th>Item Name</th>
+                  <th style="width: 75px;">Qty</th>
+                  <th style="width: 95px;">Price</th>
+                  <th style="width: 75px;">Tax %</th>
+                  <th style="width: 95px;">Total</th>
+                  <th style="width: 40px;"></th>
+                </tr>
+              </thead>
+              <tbody id="posItemsBody"></tbody>
+            </table>
+          </div>
+
+          <div class="summary-card">
+            <h3 style="margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">Billing Summary</h3>
+            <div class="summary-row"><span>Items / Lines:</span><span id="summaryLineCount">0</span></div>
+            <div class="summary-row"><span>Subtotal (Net):</span><span id="summarySubtotal">₹0.00</span></div>
+            <div class="summary-row"><span>Total Tax:</span><span id="summaryTax">₹0.00</span></div>
+            <div class="summary-row total"><span>Grand Total:</span><span id="summaryGrandTotal">₹0.00</span></div>
+            <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem;">
+              <button class="btn btn-success" style="justify-content: center; padding: 0.75rem;" onclick="triggerPrintPdf()">Print Bill / PDF</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. INVENTORY PANEL -->
+    <section id="panel-inventory" class="panel">
+      <div class="card">
+        <div class="card-header">
+          <h2 id="invFormTitle">Add / Update Product</h2>
+          <div style="display:flex; gap:0.5rem;">
+            <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCsvImport(event)">
+            <button class="btn btn-outline" onclick="document.getElementById('csvFileInput').click()">Import CSV</button>
+            <button class="btn btn-outline" onclick="exportCsv()">Export CSV</button>
+          </div>
+        </div>
+        <form id="inventoryForm" onsubmit="saveInventoryItem(event)">
+          <input type="hidden" id="editItemIndex">
+          <div class="form-grid">
+            <div class="form-group"><label>Item Code</label><input type="text" id="invCode" required placeholder="e.g. SK1001"></div>
+            <div class="form-group" style="grid-column: span 2;"><label>Item Name</label><input type="text" id="invName" required placeholder="Product description"></div>
+            <div class="form-group"><label>Stock Qty</label><input type="number" id="invQty" step="any" min="0" required placeholder="0"></div>
+            <div class="form-group"><label>MRP / Price (₹)</label><input type="number" id="invMrp" step="0.01" min="0" required placeholder="0.00"></div>
+            <div class="form-group"><label>Tax (%)</label><input type="number" id="invTax" step="0.01" min="0" required placeholder="5"></div>
+          </div>
+          <div style="display:flex; gap:0.5rem;">
+            <button type="submit" class="btn btn-primary" id="saveItemBtn">Save Item</button>
+            <button type="button" class="btn btn-outline" onclick="resetInventoryForm()">Cancel</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>Stock Records</h2>
+          <div style="width: 280px;"><input type="text" id="invSearchInput" placeholder="Filter items by code or name..." oninput="renderInventoryTable(this.value)" style="width: 100%;"></div>
+        </div>
+        <div class="table-container">
+          <table id="inventoryTable">
+            <thead><tr><th>Code</th><th>Item Name</th><th>Stock Qty</th><th>MRP (₹)</th><th>Tax (%)</th><th style="width: 120px;">Actions</th></tr></thead>
+            <tbody id="inventoryTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. SALES & BILL HISTORY PANEL -->
+    <section id="panel-sales" class="panel">
+      <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-label">Total Revenue</div><div class="metric-value" id="statRevenue">₹0.00</div></div>
+        <div class="metric-card accent"><div class="metric-label">GST Collected</div><div class="metric-value" id="statTax">₹0.00</div></div>
+        <div class="metric-card"><div class="metric-label">Net Base Sales</div><div class="metric-value" id="statBase">₹0.00</div></div>
+        <div class="metric-card success"><div class="metric-label">Total Bills Issued</div><div class="metric-value" id="statBillsCount">0</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>Invoice History Log</h2>
+          <div style="display:flex; gap:0.5rem;">
+            <input type="text" id="salesSearchInput" placeholder="Search by Invoice #..." oninput="renderSalesTable(this.value)">
+            <button class="btn btn-danger" onclick="clearSalesHistory()">Clear Log</button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Invoice #</th><th>Date & Time</th><th>Items Count</th><th>Tax (₹)</th><th>Total Amount (₹)</th><th style="width: 120px;">Action</th></tr></thead>
+            <tbody id="salesTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ALL ITEMS LOOKUP MODAL -->
+  <div id="allItemsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: var(--primary);">Select Product from Inventory</h3>
+        <button class="btn btn-outline" onclick="closeAllItemsModal()" style="border:none; font-size:1.2rem;">&times;</button>
+      </div>
+      <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border);">
+        <input type="text" id="modalSearchInput" placeholder="Search item code or name..." oninput="renderModalItemList(this.value)" style="width: 100%;">
+      </div>
+      <div class="modal-body">
+        <div class="table-container">
+          <table>
+            <thead><tr><th>Code</th><th>Item Name</th><th>Stock</th><th>MRP</th><th>Tax</th><th>Action</th></tr></thead>
+            <tbody id="modalItemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-outline" onclick="closeAllItemsModal()">Close</button></div>
+    </div>
+  </div>
+
+  <!-- RECEIPT TEMPLATE -->
+  <div id="print-section">
+    <div class="receipt-header">
+      <h2>SK STORES</h2>
+      <p>Market Road, Kochi, Kerala &bull; Ph: +91 484 2200331</p>
+      <p>GSTIN: 32AABCS1429B1Z8 &bull; TAX INVOICE</p>
+    </div>
+    <div class="receipt-divider"></div>
+    <div class="receipt-meta">
+      <div class="receipt-meta-row"><span>INVOICE NO: <strong id="printInvNo"></strong></span><span>COUNTER: 01</span></div>
+      <div class="receipt-meta-row"><span>DATE &amp; TIME: <span id="printTimestamp"></span></span><span>MODE: CASH / UPI</span></div>
+    </div>
+    <table class="receipt-table">
+      <thead>
+        <tr>
+          <th style="width:6%">#</th>
+          <th style="width:15%">CODE</th>
+          <th style="width:43%">ITEM DESCRIPTION</th>
+          <th class="text-right" style="width:12%">RATE</th>
+          <th class="text-right" style="width:8%">QTY</th>
+          <th class="text-right" style="width:16%">AMOUNT</th>
+        </tr>
+      </thead>
+      <tbody id="printTableBody"></tbody>
+    </table>
+    <div class="receipt-divider"></div>
+    <div class="receipt-totals-container">
+      <div class="receipt-totals">
+        <div class="line"><span>TAXABLE BASE:</span><span>&#8377;<span id="printSubtotal">0.00</span></span></div>
+        <div class="line"><span>GST TOTAL:</span><span>&#8377;<span id="printTax">0.00</span></span></div>
+        <div class="line grand-total"><span>NET PAYABLE:</span><span>&#8377;<span id="printGrandTotal">0.00</span></span></div>
+      </div>
+    </div>
+    <div class="receipt-footer">
+      <div class="receipt-divider"></div>
+      <p style="font-weight: bold; margin-bottom: 2px;">*** THANK YOU FOR SHOPPING AT SK STORES, KOCHI ***</p>
+      <p>Goods once sold can be exchanged within 7 days with valid receipt.</p>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_DEMO_ITEMS = [
+      { code: "SK1001", name: "Matta Rice 5kg",       qty: 45,  mrp: 280, tax: 5  },
+      { code: "SK1002", name: "Coconut Oil 1L",        qty: 60,  mrp: 210, tax: 5  },
+      { code: "SK1003", name: "Tata Salt 1kg",         qty: 100, mrp: 28,  tax: 0  },
+      { code: "SK1004", name: "Wheat Atta 5kg",        qty: 35,  mrp: 265, tax: 5  },
+      { code: "SK1005", name: "Sambar Powder 100g",    qty: 80,  mrp: 38,  tax: 12 },
+      { code: "SK1006", name: "Rice Powder 1kg",       qty: 50,  mrp: 68,  tax: 5  },
+      { code: "SK1007", name: "Milma Ghee 500ml",      qty: 30,  mrp: 340, tax: 12 },
+      { code: "SK1008", name: "Red Label Tea 500g",    qty: 40,  mrp: 240, tax: 5  },
+      { code: "SK1009", name: "Bru Instant 100g",      qty: 25,  mrp: 185, tax: 18 },
+      { code: "SK1010", name: "Parle-G Biscuits 1kg",  qty: 40,  mrp: 120, tax: 18 },
+      { code: "SK1011", name: "Surf Excel 1kg",        qty: 45,  mrp: 145, tax: 18 },
+      { code: "SK1012", name: "Vim Gel 500ml",         qty: 50,  mrp: 105, tax: 18 },
+      { code: "SK1013", name: "Dettol Liquid 250ml",   qty: 30,  mrp: 125, tax: 18 },
+      { code: "SK1014", name: "Colgate Paste 200g",    qty: 60,  mrp: 98,  tax: 18 },
+      { code: "SK1015", name: "Santoor Soap 125g",     qty: 90,  mrp: 42,  tax: 18 },
+      { code: "SK1016", name: "Toor Dal 1kg",          qty: 55,  mrp: 165, tax: 5  },
+      { code: "SK1017", name: "Urad Dal 1kg",          qty: 40,  mrp: 140, tax: 5  },
+      { code: "SK1018", name: "Mustard Seeds 200g",    qty: 70,  mrp: 35,  tax: 5  },
+      { code: "SK1019", name: "Black Pepper 100g",     qty: 40,  mrp: 95,  tax: 5  },
+      { code: "SK1020", name: "Sugar 1kg",             qty: 85,  mrp: 46,  tax: 5  }
+    ];
+
+    let inventory = [];
+    let posInvoiceItems = [];
+    let salesHistory = [];
+
+    window.addEventListener("DOMContentLoaded", () => {
+      loadInventory();
+      loadSalesHistory();
+      renderInventoryTable();
+      addBlankInvoiceRow();
+    });
+
+    function loadInventory() {
+      const stored = localStorage.getItem("sk_inventory");
+      if (stored) { try { inventory = JSON.parse(stored); } catch(e) { inventory = [...DEFAULT_DEMO_ITEMS]; } }
+      else { inventory = [...DEFAULT_DEMO_ITEMS]; persistInventory(); }
+    }
+    function persistInventory() { localStorage.setItem("sk_inventory", JSON.stringify(inventory)); }
+
+    function loadSalesHistory() {
+      const stored = localStorage.getItem("sk_sales_history");
+      if (stored) { try { salesHistory = JSON.parse(stored); } catch(e) { salesHistory = []; } }
+      else { salesHistory = []; }
+    }
+    function persistSalesHistory() { localStorage.setItem("sk_sales_history", JSON.stringify(salesHistory)); }
+
+    function switchTab(tabId) {
+      document.querySelectorAll(".nav-tab-btn").forEach(btn => btn.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+      if (tabId === "pos") {
+        document.querySelector(".nav-tab-btn:nth-child(1)").classList.add("active");
+        document.getElementById("panel-pos").classList.add("active");
+      } else if (tabId === "inventory") {
+        document.querySelector(".nav-tab-btn:nth-child(2)").classList.add("active");
+        document.getElementById("panel-inventory").classList.add("active");
+        renderInventoryTable();
+      } else if (tabId === "sales") {
+        document.querySelector(".nav-tab-btn:nth-child(3)").classList.add("active");
+        document.getElementById("panel-sales").classList.add("active");
+        renderSalesPanel();
+      }
+    }
+
+    function renderInventoryTable(filter = "") {
+      const tbody = document.getElementById("inventoryTableBody");
+      tbody.innerHTML = "";
+      const query = filter.toLowerCase().trim();
+      const filtered = inventory.filter(item => item.code.toLowerCase().includes(query) || item.name.toLowerCase().includes(query));
+      if (filtered.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem;">No items found.</td></tr>`; return; }
+      filtered.forEach((item) => {
+        const actualIndex = inventory.findIndex(i => i.code === item.code);
+        const row = document.createElement("tr");
+        row.innerHTML = `<td><strong>${item.code}</strong></td><td>${item.name}</td><td>${item.qty}</td><td>&#8377;${Number(item.mrp).toFixed(2)}</td><td>${item.tax}%</td><td><button class="btn btn-outline" style="padding:2px 6px;font-size:0.75rem;" onclick="editInventoryItem(${actualIndex})">Edit</button> <button class="btn btn-danger" style="padding:2px 6px;font-size:0.75rem;" onclick="deleteInventoryItem(${actualIndex})">Delete</button></td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    function saveInventoryItem(e) {
+      e.preventDefault();
+      const code = document.getElementById("invCode").value.trim();
+      const name = document.getElementById("invName").value.trim();
+      const qty  = parseFloat(document.getElementById("invQty").value) || 0;
+      const mrp  = parseFloat(document.getElementById("invMrp").value) || 0;
+      const tax  = parseFloat(document.getElementById("invTax").value) || 0;
+      const editIndex = document.getElementById("editItemIndex").value;
+      if (editIndex === "") {
+        if (inventory.some(item => item.code.toLowerCase() === code.toLowerCase())) { alert("Item Code already exists."); return; }
+        inventory.push({ code, name, qty, mrp, tax });
+      } else { inventory[editIndex] = { code, name, qty, mrp, tax }; }
+      persistInventory(); renderInventoryTable(); resetInventoryForm();
+    }
+
+    function editInventoryItem(index) {
+      const item = inventory[index];
+      document.getElementById("invCode").value  = item.code;
+      document.getElementById("invName").value  = item.name;
+      document.getElementById("invQty").value   = item.qty;
+      document.getElementById("invMrp").value   = item.mrp;
+      document.getElementById("invTax").value   = item.tax;
+      document.getElementById("editItemIndex").value = index;
+      document.getElementById("invFormTitle").innerText = "Edit Item (" + item.code + ")";
+      document.getElementById("saveItemBtn").innerText  = "Update Item";
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function deleteInventoryItem(index) {
+      if (confirm(`Delete "${inventory[index].name}"?`)) { inventory.splice(index, 1); persistInventory(); renderInventoryTable(); }
+    }
+
+    function resetInventoryForm() {
+      document.getElementById("inventoryForm").reset();
+      document.getElementById("editItemIndex").value = "";
+      document.getElementById("invFormTitle").innerText = "Add / Update Product";
+      document.getElementById("saveItemBtn").innerText  = "Save Item";
+    }
+
+    function exportCsv() {
+      let csv = "data:text/csv;charset=utf-8,Item Code,Item Name,Quantity,MRP,Tax\n";
+      inventory.forEach(i => { csv += `${i.code},"${i.name.replace(/"/g,'""')}",${i.qty},${i.mrp},${i.tax}\n`; });
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csv));
+      link.setAttribute("download", `SK_Stores_Inventory_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
+
+    function handleCsvImport(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const raw = (e.target.result || "").replace(/^\uFEFF/, "").trim();
+          if (!raw) {
+            alert("The selected CSV file is empty.");
+            return;
+          }
+
+          const rows = parseFullCsv(raw);
+          if (rows.length === 0) {
+            alert("No tabular rows found in CSV.");
+            return;
+          }
+
+          let startIdx = 0;
+          const h0 = (rows[0][0] || "").toLowerCase();
+          const h1 = (rows[0][1] || "").toLowerCase();
+          if (h0.includes("code") || h1.includes("name") || h1.includes("item") || isNaN(parseFloat(rows[0][2]))) {
+            startIdx = 1;
+          }
+
+          const parsed = [];
+          const errors = [];
+
+          for (let i = startIdx; i < rows.length; i++) {
+            const row = rows[i];
+            if (row.length === 0 || (row.length === 1 && !row[0].trim())) continue;
+
+            const code = (row[0] || "").trim();
+            const name = (row[1] || "").trim();
+            const qty  = parseFloat(row[2]) || 0;
+            const mrp  = parseFloat(row[3]) || 0;
+            const tax  = parseFloat(row[4]) || 0;
+
+            if (!code && !name) continue;
+            if (!code || !name) {
+              errors.push(`Row ${i + 1}: Missing code or item name`);
+              continue;
+            }
+
+            parsed.push({ code, name, qty, mrp, tax });
+          }
+
+          if (parsed.length === 0) {
+            alert("No valid items could be parsed.\n\nExpected CSV columns:\nItem Code, Item Name, Quantity, MRP, Tax\n\nExample:\nSK1001,Matta Rice 5kg,45,280,5"
+              + (errors.length ? "\n\nIssues:\n" + errors.slice(0, 5).join("\n") : ""));
+            return;
+          }
+
+          const merge = confirm(`Successfully parsed ${parsed.length} item(s).\n\nClick OK to MERGE into existing inventory.\nClick Cancel to OVERWRITE entire inventory.`);
+          if (merge) {
+            parsed.forEach(newItem => {
+              const idx = inventory.findIndex(item => item.code.toLowerCase() === newItem.code.toLowerCase());
+              if (idx !== -1) {
+                inventory[idx] = newItem;
+              } else {
+                inventory.push(newItem);
+              }
+            });
+          } else {
+            inventory = parsed;
+          }
+
+          persistInventory();
+          renderInventoryTable();
+          alert(`Import complete!\n${parsed.length} products loaded.` + (errors.length ? `\n(${errors.length} invalid rows skipped)` : ""));
+        } catch (err) {
+          console.error(err);
+          alert("Error parsing CSV file: " + err.message);
+        }
+      };
+
+      reader.readAsText(file, "UTF-8");
+      event.target.value = "";
+    }
+
+    function parseFullCsv(text) {
+      const result = [];
+      let row = [];
+      let token = "";
+      let inQuotes = false;
+
+      // Autodetect delimiter from first line (comma, semicolon, or tab)
+      const firstLineEnd = text.search(/[\r\n]/);
+      const headerSample = firstLineEnd !== -1 ? text.substring(0, firstLineEnd) : text;
+      const delimiterCounts = {
+        ',': (headerSample.match(/,/g) || []).length,
+        ';': (headerSample.match(/;/g) || []).length,
+        '\t': (headerSample.match(/\t/g) || []).length
+      };
+      const delim = Object.keys(delimiterCounts).reduce((a, b) => delimiterCounts[a] >= delimiterCounts[b] ? a : b) || ',';
+
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        const next = text[i + 1];
+
+        if (c === '"') {
+          if (inQuotes && next === '"') {
+            token += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (c === delim && !inQuotes) {
+          row.push(token);
+          token = "";
+        } else if ((c === '\r' || c === '\n') && !inQuotes) {
+          row.push(token);
+          token = "";
+          if (row.length > 0 && row.some(cell => cell.trim().length > 0)) {
+            result.push(row);
+          }
+          row = [];
+          if (c === '\r' && next === '\n') i++;
+        } else {
+          token += c;
+        }
+      }
+
+      if (token.length > 0 || row.length > 0) {
+        row.push(token);
+        if (row.some(cell => cell.trim().length > 0)) {
+          result.push(row);
+        }
+      }
+
+      return result;
+    }
+
+    function addBlankInvoiceRow() { posInvoiceItems.push({ code:"", name:"", qty:1, price:0, tax:0 }); renderPosTable(); }
+
+    function addProductToInvoice(product) {
+      const existing = posInvoiceItems.find(i => i.code && i.code.toLowerCase()===product.code.toLowerCase());
+      if (existing) { existing.qty += 1; }
+      else {
+        const last = posInvoiceItems[posInvoiceItems.length-1];
+        const isBlank = last && !last.code && !last.name && last.price===0;
+        const ni = { code:product.code, name:product.name, qty:1, price:product.mrp, tax:product.tax };
+        if (isBlank) posInvoiceItems[posInvoiceItems.length-1]=ni; else posInvoiceItems.push(ni);
+      }
+      renderPosTable();
+    }
+
+    function renderPosTable() {
+      const tbody = document.getElementById("posItemsBody");
+      tbody.innerHTML = "";
+      let totalTax=0, subtotal=0, grandTotal=0;
+      posInvoiceItems.forEach((row, index) => {
+        const qty=parseFloat(row.qty)||0, price=parseFloat(row.price)||0, taxRate=parseFloat(row.tax)||0;
+        const base=qty*price, lineTax=(base*taxRate)/100, lineTotal=base+lineTax;
+        subtotal+=base; totalTax+=lineTax; grandTotal+=lineTotal;
+        const tr=document.createElement("tr");
+        tr.innerHTML=`
+          <td><input type="text" value="${row.code||''}" style="width:100%;" placeholder="Custom" onchange="updatePosField(${index},'code',this.value)"></td>
+          <td><input type="text" value="${row.name||''}" style="width:100%;" placeholder="Item Name" onchange="updatePosField(${index},'name',this.value)"></td>
+          <td><input type="number" step="any" min="0.01" value="${row.qty}" style="width:100%;text-align:right;" onchange="updatePosField(${index},'qty',this.value)"></td>
+          <td><input type="number" step="0.01" min="0" value="${row.price}" style="width:100%;text-align:right;" onchange="updatePosField(${index},'price',this.value)"></td>
+          <td><input type="number" step="0.01" min="0" value="${row.tax}" style="width:100%;text-align:right;" onchange="updatePosField(${index},'tax',this.value)"></td>
+          <td style="text-align:right;font-weight:600;">&#8377;${lineTotal.toFixed(2)}</td>
+          <td><button class="btn btn-danger" style="padding:2px 6px;" onclick="removePosRow(${index})">&times;</button></td>`;
+        tbody.appendChild(tr);
+      });
+      document.getElementById("summaryLineCount").innerText   = posInvoiceItems.length;
+      document.getElementById("summarySubtotal").innerHTML    = `&#8377;${subtotal.toFixed(2)}`;
+      document.getElementById("summaryTax").innerHTML         = `&#8377;${totalTax.toFixed(2)}`;
+      document.getElementById("summaryGrandTotal").innerHTML  = `&#8377;${grandTotal.toFixed(2)}`;
+    }
+
+    function updatePosField(index, field, value) {
+      if (['qty','price','tax'].includes(field)) posInvoiceItems[index][field]=parseFloat(value)||0;
+      else posInvoiceItems[index][field]=value;
+      renderPosTable();
+    }
+
+    function removePosRow(index) {
+      posInvoiceItems.splice(index,1);
+      if(posInvoiceItems.length===0) addBlankInvoiceRow(); else renderPosTable();
+    }
+
+    function clearInvoice() { if(confirm("Reset current bill?")){ posInvoiceItems=[]; addBlankInvoiceRow(); } }
+
+    function handlePosSearch(val) {
+      const q=val.trim().toLowerCase(), list=document.getElementById("autocompleteList");
+      if(!q){ list.style.display="none"; list.innerHTML=""; return; }
+      const matches=inventory.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q));
+      if(matches.length===0){ list.style.display="none"; return; }
+      list.innerHTML=matches.slice(0,8).map(m=>`<div class="autocomplete-item" onclick="selectFromPosSearch('${m.code}')"><span><strong>${m.code}</strong> - ${m.name}</span><span style="color:var(--primary);font-weight:600;">&#8377;${m.mrp}</span></div>`).join('');
+      list.style.display="block";
+    }
+
+    function selectFromPosSearch(code) {
+      const p=inventory.find(i=>i.code===code); if(p) addProductToInvoice(p);
+      document.getElementById("posSearchInput").value="";
+      document.getElementById("autocompleteList").style.display="none";
+    }
+
+    function openAllItemsModal() { document.getElementById("allItemsModal").classList.add("active"); renderModalItemList(""); }
+    function closeAllItemsModal() { document.getElementById("allItemsModal").classList.remove("active"); }
+
+    function renderModalItemList(filter) {
+      const body=document.getElementById("modalItemsBody"), q=filter.trim().toLowerCase();
+      body.innerHTML="";
+      inventory.filter(i=>i.code.toLowerCase().includes(q)||i.name.toLowerCase().includes(q)).forEach(item=>{
+        const tr=document.createElement("tr");
+        tr.innerHTML=`<td><strong>${item.code}</strong></td><td>${item.name}</td><td>${item.qty}</td><td>&#8377;${Number(item.mrp).toFixed(2)}</td><td>${item.tax}%</td><td><button class="btn btn-primary" style="padding:2px 8px;font-size:0.75rem;" onclick="addFromModal('${item.code}')">+ Add</button></td>`;
+        body.appendChild(tr);
+      });
+    }
+
+    function addFromModal(code) { const p=inventory.find(i=>i.code===code); if(p) addProductToInvoice(p); }
+
+    function triggerPrintPdf(existingInvoice = null) {
+      let activeRows=[], invoiceNo="", timestamp="", timestampFormatted="";
+      const now=new Date();
+      const pad=n=>String(n).padStart(2,'0');
+
+      if (existingInvoice) {
+        activeRows         = existingInvoice.items;
+        invoiceNo          = existingInvoice.invoiceNo;
+        timestamp          = existingInvoice.timestamp;
+        timestampFormatted = existingInvoice.id;
+      } else {
+        activeRows = posInvoiceItems.filter(i=>(i.name&&i.name.trim()!=="")||i.price>0);
+        if (activeRows.length===0) { alert("Invoice is empty. Please add items before printing."); return; }
+        const dateStr=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+        const timeStr=`${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+        timestampFormatted=`${dateStr}_${timeStr}`;
+        invoiceNo="SK"+timestampFormatted.replace(/[-_]/g,'').slice(2,12);
+        timestamp=now.toLocaleDateString()+' '+now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      }
+
+      const printTbody=document.getElementById("printTableBody");
+      printTbody.innerHTML="";
+      let subtotal=0, totalTax=0, grandTotal=0;
+      activeRows.forEach((row,i)=>{
+        const qty=parseFloat(row.qty)||0, price=parseFloat(row.price)||0, taxRate=parseFloat(row.tax)||0;
+        const base=qty*price, tax=(base*taxRate)/100, rowTotal=base+tax;
+        subtotal+=base; totalTax+=tax; grandTotal+=rowTotal;
+        const tr=document.createElement("tr");
+        tr.innerHTML=`<td>${i+1}</td><td>${row.code||'-'}</td><td>${row.name}</td><td class="text-right">${price.toFixed(2)}</td><td class="text-right">${qty}</td><td class="text-right">${rowTotal.toFixed(2)}</td>`;
+        printTbody.appendChild(tr);
+      });
+      document.getElementById("printInvNo").innerText      = invoiceNo;
+      document.getElementById("printTimestamp").innerText  = timestamp;
+      document.getElementById("printSubtotal").innerText   = subtotal.toFixed(2);
+      document.getElementById("printTax").innerText        = totalTax.toFixed(2);
+      document.getElementById("printGrandTotal").innerText = grandTotal.toFixed(2);
+
+      if (!existingInvoice) {
+        salesHistory.unshift({ id:timestampFormatted, invoiceNo, timestamp, itemsCount:activeRows.length, subtotal, tax:totalTax, grandTotal, items:JSON.parse(JSON.stringify(activeRows)) });
+        persistSalesHistory();
+      }
+
+      const ps=document.getElementById('print-section');
+      ps.style.left='0px';
+
+      setTimeout(async ()=>{
+        try {
+          const canvas=await html2canvas(ps,{
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            width: 794,
+            windowWidth: 794
+          });
+
+          const { jsPDF }=window.jspdf;
+          const pdf=new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+          const pageW=pdf.internal.pageSize.getWidth();
+          const pageH=pdf.internal.pageSize.getHeight();
+          const imgW=pageW;
+          const imgH=(canvas.height*imgW)/canvas.width;
+          const imgData=canvas.toDataURL('image/png');
+
+          if (imgH<=pageH) {
+            pdf.addImage(imgData,'PNG',0,0,imgW,imgH);
+          } else {
+            const ratio=canvas.width/imgW;
+            let yMM=0;
+            while (yMM<imgH) {
+              const sliceHmm=Math.min(pageH,imgH-yMM);
+              const sc=document.createElement('canvas');
+              sc.width=canvas.width;
+              sc.height=Math.round(sliceHmm*ratio);
+              const ctx=sc.getContext('2d');
+              ctx.drawImage(canvas,0,Math.round(yMM*ratio),canvas.width,sc.height,0,0,canvas.width,sc.height);
+              if(yMM>0) pdf.addPage();
+              pdf.addImage(sc.toDataURL('image/png'),'PNG',0,0,imgW,sliceHmm);
+              yMM+=sliceHmm;
+            }
+          }
+
+          pdf.save(`SK_Stores_Invoice_${timestampFormatted}.pdf`);
+        } catch(err) {
+          console.error('PDF generation failed:',err);
+          alert('PDF generation failed: '+err.message);
+        } finally {
+          ps.style.left='-9999px';
+        }
+      }, 200);
+    }
+
+    function renderSalesPanel() {
+      let totalRevenue=0, totalTax=0, totalBase=0;
+      salesHistory.forEach(b=>{ totalRevenue+=b.grandTotal||0; totalTax+=b.tax||0; totalBase+=b.subtotal||0; });
+      document.getElementById("statRevenue").innerHTML    = `&#8377;${totalRevenue.toFixed(2)}`;
+      document.getElementById("statTax").innerHTML        = `&#8377;${totalTax.toFixed(2)}`;
+      document.getElementById("statBase").innerHTML       = `&#8377;${totalBase.toFixed(2)}`;
+      document.getElementById("statBillsCount").innerText = salesHistory.length;
+      renderSalesTable();
+    }
+
+    function renderSalesTable(filter="") {
+      const tbody=document.getElementById("salesTableBody"), q=filter.trim().toLowerCase();
+      tbody.innerHTML="";
+      const filtered=salesHistory.filter(b=>b.invoiceNo.toLowerCase().includes(q));
+      if(filtered.length===0){ tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem;">No invoices found.</td></tr>`; return; }
+      filtered.forEach(bill=>{
+        const tr=document.createElement("tr");
+        tr.innerHTML=`<td><strong>${bill.invoiceNo}</strong></td><td>${bill.timestamp}</td><td>${bill.itemsCount} lines</td><td>&#8377;${Number(bill.tax).toFixed(2)}</td><td style="font-weight:700;color:var(--primary);">&#8377;${Number(bill.grandTotal).toFixed(2)}</td><td><button class="btn btn-outline" style="padding:2px 8px;font-size:0.75rem;" onclick="reprintInvoice('${bill.id}')">View / Print</button></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function reprintInvoice(billId) { const b=salesHistory.find(b=>b.id===billId); if(b) triggerPrintPdf(b); }
+
+    function clearSalesHistory() {
+      if(confirm("Clear all sales records? Cannot be undone.")){ salesHistory=[]; persistSalesHistory(); renderSalesPanel(); }
+    }
+  </script>
+</body>
+</html>
